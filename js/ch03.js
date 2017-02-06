@@ -1,22 +1,29 @@
 var stats = initStats();
         // create a scene, that will hold all our elements such as objects, cameras and lights.
         var scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0xaaaaaa, 0.010, 200);
         // create a camera, which defines where we're looking at.
         var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         // create a render and set the size
         var renderer = new THREE.WebGLRenderer();
-        renderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
+        renderer.setClearColor(new THREE.Color(0xaaaaff, 1.0));
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMapEnabled = true;
+        renderer.shadowMap.enabled = true;
         // create the ground plane
-        var planeGeometry = new THREE.PlaneGeometry(600, 200, 20, 20);
-        var planeMaterial = new THREE.MeshLambertMaterial({color: 0xffffff});
+        //
+        var textureGrass = new THREE.TextureLoader().load("../assets/textures/ground/grasslight-big.jpg");
+        textureGrass.wrapS = THREE.RepeatWrapping;
+        textureGrass.wrapT = THREE.RepeatWrapping;
+        textureGrass.repeat.set(4, 4);
+        var planeGeometry = new THREE.PlaneGeometry(1000, 200, 20, 20);
+        var planeMaterial = new THREE.MeshLambertMaterial({map: textureGrass});
+//        var planeMaterial = new THREE.MeshLambertMaterial();
         var plane = new THREE.Mesh(planeGeometry, planeMaterial);
         plane.receiveShadow = true;
         // rotate and position the plane
         plane.rotation.x = -0.5 * Math.PI;
         plane.position.x = 15;
-        plane.position.y = -5;
+        plane.position.y = 0;
         plane.position.z = 0;
         // add the plane to the scene
         scene.add(plane);
@@ -31,49 +38,52 @@ var stats = initStats();
         cube.position.z = 0;
         // add the cube to the scene
         scene.add(cube);
-        var sphereGeometry = new THREE.SphereGeometry(4, 20, 20);
+        var sphereGeometry = new THREE.SphereGeometry(4, 25, 25);
         var sphereMaterial = new THREE.MeshLambertMaterial({color: 0x7777ff});
         var sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
         // position the sphere
-        sphere.position.x = 20;
-        sphere.position.y = 0;
-        sphere.position.z = 2;
+        sphere.position.x = 10;
+        sphere.position.y = 5;
+        sphere.position.z = 10;
         sphere.castShadow = true;
         // add the sphere to the scene
         scene.add(sphere);
         // position and point the camera to the center of the scene
-        camera.position.x = -35;
-        camera.position.y = 30;
-        camera.position.z = 25;
+        camera.position.x = -20;
+        camera.position.y = 15;
+        camera.position.z = 45;
+//        camera.position.x = -120;
+//        camera.position.y = 165;
+//        camera.position.z = 145;
         camera.lookAt(new THREE.Vector3(10, 0, 0));
-        // add subtle ambient lighting
-        var ambiColor = "#1c1c1c";
-        var ambientLight = new THREE.AmbientLight(ambiColor);
-        scene.add(ambientLight);
+        // add spotlight for a bit of light
+        var spotLight0 = new THREE.SpotLight(0xcccccc);
+        spotLight0.position.set(-40, 60, -10);
+        spotLight0.lookAt(plane);
+        scene.add(spotLight0);
         var target = new THREE.Object3D();
         target.position = new THREE.Vector3(5, 0, 0);
-        var pointColor = "#ff5808";
-        var directionalLight = new THREE.DirectionalLight(pointColor);
-        directionalLight.position.set(-40, 60, -10);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.camera.near = 2;
-        directionalLight.shadow.camera.far = 200;
-        directionalLight.shadow.camera.left = -50;
-        directionalLight.shadow.camera.right = 50;
-        directionalLight.shadow.camera.top = 50;
-        directionalLight.shadow.camera.bottom = -50;
-        directionalLight.distance = 0;
-        directionalLight.intensity = 0.5;
-        directionalLight.shadow.mapSize.height = 1024;
-        directionalLight.shadow.mapSize.width = 1024;
-        scene.add(directionalLight);
-        // add a small sphere simulating the pointlight
-        var sphereLight = new THREE.SphereGeometry(0.2);
-        var sphereLightMaterial = new THREE.MeshBasicMaterial({color: 0xac6c25});
-        var sphereLightMesh = new THREE.Mesh(sphereLight, sphereLightMaterial);
-        sphereLightMesh.castShadow = true;
-        sphereLightMesh.position = new THREE.Vector3(3, 20, 3);
-        scene.add(sphereLightMesh);
+        var hemiLight = new THREE.HemisphereLight(0x0000ff, 0x00ff00, 0.6);
+        hemiLight.position.set(0, 500, 0);
+        scene.add(hemiLight);
+        var pointColor = "#ffffff";
+//    var dirLight = new THREE.SpotLight( pointColor);
+        var dirLight = new THREE.DirectionalLight(pointColor);
+        dirLight.position.set(30, 10, -50);
+        dirLight.castShadow = true;
+//        dirLight.shadowCameraNear = 0.1;
+//        dirLight.shadowCameraFar = 100;
+//        dirLight.shadowCameraFov = 50;
+        dirLight.target = plane;
+        dirLight.shadow.camera.near = 0.1;
+        dirLight.shadow.camera.far = 200;
+        dirLight.shadow.camera.left = -50;
+        dirLight.shadow.camera.right = 50;
+        dirLight.shadow.camera.top = 50;
+        dirLight.shadow.camera.bottom = -50;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
         // add the output of the renderer to the html element
         document.getElementById("WebGL-output").appendChild(renderer.domElement);
         // call the render function
@@ -84,52 +94,27 @@ var stats = initStats();
         var controls = new function () {
             this.rotationSpeed = 0.03;
             this.bouncingSpeed = 0.03;
-            this.ambientColor = ambiColor;
-            this.pointColor = pointColor;
-            this.intensity = 0.5;
-            this.distance = 0;
-            this.exponent = 30;
-            this.angle = 0.1;
-            this.debug = false;
-            this.castShadow = true;
-            this.onlyShadow = false;
-            this.target = "Plane";
+            this.hemisphere = true;
+            this.color = 0x00ff00;
+            this.skyColor = 0x0000ff;
+            this.intensity = 0.6;
         };
         var gui = new dat.GUI();
-        gui.addColor(controls, 'ambientColor').onChange(function (e) {
-            ambientLight.color = new THREE.Color(e);
+        gui.add(controls, 'hemisphere').onChange(function (e) {
+            if (!e) {
+                hemiLight.intensity = 0;
+            } else {
+                hemiLight.intensity = controls.intensity;
+            }
         });
-        gui.addColor(controls, 'pointColor').onChange(function (e) {
-            directionalLight.color = new THREE.Color(e);
+        gui.addColor(controls, 'color').onChange(function (e) {
+            hemiLight.groundColor = new THREE.Color(e);
+        });
+        gui.addColor(controls, 'skyColor').onChange(function (e) {
+            hemiLight.color = new THREE.Color(e);
         });
         gui.add(controls, 'intensity', 0, 5).onChange(function (e) {
-            directionalLight.intensity = e;
-        });
-        gui.add(controls, 'distance', 0, 200).onChange(function (e) {
-            directionalLight.distance = e;
-        });
-        gui.add(controls, 'debug').onChange(function (e) {
-            directionalLight.shadowCameraVisible = e;
-        });
-        gui.add(controls, 'castShadow').onChange(function (e) {
-            directionalLight.castShadow = e;
-        });
-        gui.add(controls, 'onlyShadow').onChange(function (e) {
-            directionalLight.onlyShadow = e;
-        });
-        gui.add(controls, 'target', ['Plane', 'Sphere', 'Cube']).onChange(function (e) {
-            console.log(e);
-            switch (e) {
-                case "Plane":
-                    directionalLight.target = plane;
-                    break;
-                case "Sphere":
-                    directionalLight.target = sphere;
-                    break;
-                case "Cube":
-                    directionalLight.target = cube;
-                    break;
-            }
+            hemiLight.intensity = e;
         });
         render();
         function render() {
@@ -142,11 +127,6 @@ var stats = initStats();
             step += controls.bouncingSpeed;
             sphere.position.x = 20 + ( 10 * (Math.cos(step)));
             sphere.position.y = 2 + ( 10 * Math.abs(Math.sin(step)));
-            sphereLightMesh.position.z = -8;
-            sphereLightMesh.position.y = +(27 * (Math.sin(step / 3)));
-            sphereLightMesh.position.x = 10 + (26 * (Math.cos(step / 3)));
-            directionalLight.position.copy(sphereLightMesh.position);
-            // render using requestAnimationFrame
             requestAnimationFrame(render);
             renderer.render(scene, camera);
         }
