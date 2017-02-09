@@ -8,9 +8,6 @@ var stats = initStats();
         webGLRenderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
         webGLRenderer.setSize(window.innerWidth, window.innerHeight);
         webGLRenderer.shadowMapEnabled = true;
-        var polyhedron = createMesh(new THREE.IcosahedronGeometry(10, 0));
-        // add the sphere to the scene
-        scene.add(polyhedron);
         // position and point the camera to the center of the scene
         camera.position.x = -30;
         camera.position.y = 40;
@@ -20,51 +17,50 @@ var stats = initStats();
         document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
         // call the render function
         var step = 0;
+        // the points group
+        var spGroup;
+        // the mesh
+        var hullMesh;
+        generatePoints();
         // setup the control gui
         var controls = new function () {
             // we need the first child, since it's a multimaterial
-            this.radius = 10;
-            this.detail = 0;
-            this.type = 'Icosahedron';
             this.redraw = function () {
-                // remove the old plane
-                scene.remove(polyhedron);
-                // create a new one
-                switch (controls.type) {
-                    case 'Icosahedron':
-                        polyhedron = createMesh(new THREE.IcosahedronGeometry(controls.radius, controls.detail));
-                        break;
-                    case 'Tetrahedron':
-                        polyhedron = createMesh(new THREE.TetrahedronGeometry(controls.radius, controls.detail));
-                        break;
-                    case 'Octahedron':
-                        polyhedron = createMesh(new THREE.OctahedronGeometry(controls.radius, controls.detail));
-                        break;
-                    case 'Dodecahedron':
-                        polyhedron = createMesh(new THREE.DodecahedronGeometry(controls.radius, controls.detail));
-                        break;
-                    case 'Custom':
-                        var vertices = [
-                            1, 1, 1, -1, -1, 1, -1, 1, -1, 1, -1, -1
-                        ];
-                        var indices = [
-                            2, 1, 0, 0, 3, 2, 1, 3, 0, 2, 3, 1
-                        ];
-                        polyhedron = createMesh(new THREE.PolyhedronGeometry(vertices, indices, controls.radius, controls.detail));
-                        break;
-                }
-                // add it to the scene.
-                scene.add(polyhedron);
+                scene.remove(spGroup);
+                scene.remove(hullMesh);
+                generatePoints();
             };
         };
         var gui = new dat.GUI();
-        gui.add(controls, 'radius', 0, 40).step(1).onChange(controls.redraw);
-        gui.add(controls, 'detail', 0, 3).step(1).onChange(controls.redraw);
-        gui.add(controls, 'type', ['Icosahedron', 'Tetrahedron', 'Octahedron', 'Dodecahedron', 'Custom']).onChange(controls.redraw);
+        gui.add(controls, 'redraw');
         render();
+        function generatePoints() {
+            // add 10 random spheres
+            var points = [];
+            for (var i = 0; i < 20; i++) {
+                var randomX = -15 + Math.round(Math.random() * 30);
+                var randomY = -15 + Math.round(Math.random() * 30);
+                var randomZ = -15 + Math.round(Math.random() * 30);
+                points.push(new THREE.Vector3(randomX, randomY, randomZ));
+            }
+            spGroup = new THREE.Object3D();
+            var material = new THREE.MeshBasicMaterial({color: 0xff0000, transparent: false});
+            points.forEach(function (point) {
+                var spGeom = new THREE.SphereGeometry(0.2);
+                var spMesh = new THREE.Mesh(spGeom, material);
+                spMesh.position.copy(point);
+                spGroup.add(spMesh);
+            });
+            // add the points as a group to the scene
+            scene.add(spGroup);
+            // use the same points to create a convexgeometry
+            var hullGeometry = new THREE.ConvexGeometry(points);
+            hullMesh = createMesh(hullGeometry);
+            scene.add(hullMesh);
+        }
         function createMesh(geom) {
             // assign two materials
-            var meshMaterial = new THREE.MeshNormalMaterial();
+            var meshMaterial = new THREE.MeshBasicMaterial({color: 0x00ff00, transparent: true, opacity: 0.2});
             meshMaterial.side = THREE.DoubleSide;
             var wireFrameMat = new THREE.MeshBasicMaterial();
             wireFrameMat.wireframe = true;
@@ -74,7 +70,8 @@ var stats = initStats();
         }
         function render() {
             stats.update();
-            polyhedron.rotation.y = step += 0.01;
+            spGroup.rotation.y = step;
+            hullMesh.rotation.y = step += 0.01;
             // render using requestAnimationFrame
             requestAnimationFrame(render);
             webGLRenderer.render(scene, camera);
