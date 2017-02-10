@@ -5,74 +5,94 @@ var stats = initStats();
         var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         // create a render and set the size
         var webGLRenderer = new THREE.WebGLRenderer();
-        webGLRenderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
+        webGLRenderer.setClearColor(new THREE.Color(0x000000, 1.0));
         webGLRenderer.setSize(window.innerWidth, window.innerHeight);
         webGLRenderer.shadowMapEnabled = true;
         // position and point the camera to the center of the scene
-        camera.position.x = -30;
-        camera.position.y = 40;
-        camera.position.z = 50;
-        camera.lookAt(new THREE.Vector3(10, 0, 0));
+        camera.position.x = 100;
+        camera.position.y = 300;
+        camera.position.z = 600;
+        camera.lookAt(new THREE.Vector3(400, 0, -300));
+        var dirLight = new THREE.DirectionalLight();
+        dirLight.position.set(25, 23, 15);
+        scene.add(dirLight);
+        var dirLight2 = new THREE.DirectionalLight();
+        dirLight2.position.set(-25, 23, 15);
+        scene.add(dirLight2);
         // add the output of the renderer to the html element
         document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
         // call the render function
         var step = 0;
-        // the points group
-        var spGroup;
-        // the mesh
-        var hullMesh;
-        generatePoints();
-        // setup the control gui
+        var text1;
+        var text2;
         var controls = new function () {
-            // we need the first child, since it's a multimaterial
-            this.redraw = function () {
-                scene.remove(spGroup);
-                scene.remove(hullMesh);
-                generatePoints();
+            this.size = 90;
+            this.height = 90;
+            this.bevelThickness = 2;
+            this.bevelSize = 0.5;
+            this.bevelEnabled = true;
+            this.bevelSegments = 3;
+            this.bevelEnabled = true;
+            this.curveSegments = 12;
+            this.steps = 1;
+            this.font = "helvetiker";
+            this.weight = "normal";
+//            this.style = "italics";
+            this.asGeom = function () {
+                // remove the old plane
+                scene.remove(text1);
+                scene.remove(text2);
+                // create a new one
+                var options = {
+                    size: controls.size,
+                    height: controls.height,
+                    weight: controls.weight,
+                    font: controls.font,
+                    bevelThickness: controls.bevelThickness,
+                    bevelSize: controls.bevelSize,
+                    bevelSegments: controls.bevelSegments,
+                    bevelEnabled: controls.bevelEnabled,
+                    curveSegments: controls.curveSegments,
+                    steps: controls.steps
+                };
+                // console.log(THREE.FontUtils.faces);
+                text1 = createMesh(new THREE.TextGeometry("Learning", options));
+                text1.position.z = -100;
+                text1.position.y = 100;
+                scene.add(text1);
+                text2 = createMesh(new THREE.TextGeometry("Three.js", options));
+                scene.add(text2);
             };
         };
+        controls.asGeom();
         var gui = new dat.GUI();
-        gui.add(controls, 'redraw');
+        gui.add(controls, 'size', 0, 200).onChange(controls.asGeom);
+        gui.add(controls, 'height', 0, 200).onChange(controls.asGeom);
+        gui.add(controls, 'font', ['bitstream vera sans mono', 'helvetiker']).onChange(controls.asGeom);
+        gui.add(controls, 'bevelThickness', 0, 10).onChange(controls.asGeom);
+        gui.add(controls, 'bevelSize', 0, 10).onChange(controls.asGeom);
+        gui.add(controls, 'bevelSegments', 0, 30).step(1).onChange(controls.asGeom);
+        gui.add(controls, 'bevelEnabled').onChange(controls.asGeom);
+        gui.add(controls, 'curveSegments', 1, 30).step(1).onChange(controls.asGeom);
+        gui.add(controls, 'steps', 1, 5).step(1).onChange(controls.asGeom);
         render();
-        function generatePoints() {
-            // add 10 random spheres
-            var points = [];
-            for (var i = 0; i < 20; i++) {
-                var randomX = -15 + Math.round(Math.random() * 30);
-                var randomY = -15 + Math.round(Math.random() * 30);
-                var randomZ = -15 + Math.round(Math.random() * 30);
-                points.push(new THREE.Vector3(randomX, randomY, randomZ));
-            }
-            spGroup = new THREE.Object3D();
-            var material = new THREE.MeshBasicMaterial({color: 0xff0000, transparent: false});
-            points.forEach(function (point) {
-                var spGeom = new THREE.SphereGeometry(0.2);
-                var spMesh = new THREE.Mesh(spGeom, material);
-                spMesh.position.copy(point);
-                spGroup.add(spMesh);
-            });
-            // add the points as a group to the scene
-            scene.add(spGroup);
-            // use the same points to create a convexgeometry
-            var hullGeometry = new THREE.ConvexGeometry(points);
-            hullMesh = createMesh(hullGeometry);
-            scene.add(hullMesh);
-        }
         function createMesh(geom) {
             // assign two materials
-            var meshMaterial = new THREE.MeshBasicMaterial({color: 0x00ff00, transparent: true, opacity: 0.2});
-            meshMaterial.side = THREE.DoubleSide;
-            var wireFrameMat = new THREE.MeshBasicMaterial();
-            wireFrameMat.wireframe = true;
+//            var meshMaterial = new THREE.MeshLambertMaterial({color: 0xff5555});
+//            var meshMaterial = new THREE.MeshNormalMaterial();
+            var meshMaterial = new THREE.MeshPhongMaterial({
+                specular: 0xffffff,
+                color: 0xeeffff,
+                shininess: 100,
+                metal: true
+            });
+//            meshMaterial.side=THREE.DoubleSide;
             // create a multimaterial
-            var mesh = THREE.SceneUtils.createMultiMaterialObject(geom, [meshMaterial, wireFrameMat]);
-            return mesh;
+            var plane = THREE.SceneUtils.createMultiMaterialObject(geom, [meshMaterial]);
+            return plane;
         }
         function render() {
             stats.update();
-            spGroup.rotation.y = step;
-            hullMesh.rotation.y = step += 0.01;
-            // render using requestAnimationFrame
             requestAnimationFrame(render);
             webGLRenderer.render(scene, camera);
         }
