@@ -1,78 +1,90 @@
 var stats = initStats();
         // create a scene, that will hold all our elements such as objects, cameras and lights.
         var scene = new THREE.Scene();
+        var sceneOrtho = new THREE.Scene();
         // create a camera, which defines where we're looking at.
-        var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+        var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 250);
+        var cameraOrtho = new THREE.OrthographicCamera(0, window.innerWidth, window.innerHeight, 0, -10, 10);
         // create a render and set the size
         var webGLRenderer = new THREE.WebGLRenderer();
-        webGLRenderer.setClearColor(0x000000);
+        webGLRenderer.setClearColor(new THREE.Color(0x000000, 1.0));
         webGLRenderer.setSize(window.innerWidth, window.innerHeight);
         // position and point the camera to the center of the scene
-        camera.position.x = 20;
-        camera.position.y = 40;
-        camera.position.z = 110;
-        camera.lookAt(new THREE.Vector3(20, 30, 0));
+        camera.position.x = 0;
+        camera.position.y = 0;
+        camera.position.z = 50;
         // add the output of the renderer to the html element
         document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
-        var system1;
-        var cloud;
+        var material = new THREE.MeshNormalMaterial();
+        var geom = new THREE.SphereGeometry(15, 20, 20);
+        var mesh = new THREE.Mesh(geom, material);
+        scene.add(mesh);
+        var getTexture = function () {
+            var texture = new THREE.TextureLoader().load("assets/textures/particles/sprite-sheet.png");
+            return texture;
+        };
         var controls = new function () {
-            this.size = 3;
+            this.size = 150;
+            this.sprite = 0;
             this.transparent = true;
             this.opacity = 0.6;
             this.color = 0xffffff;
-            this.sizeAttenuation = true;
+            this.rotateSystem = true;
             this.redraw = function () {
-                scene.remove(scene.getObjectByName("particles1"));
-                scene.remove(scene.getObjectByName("particles2"));
-                createPointCloud(controls.size, controls.transparent, controls.opacity, controls.sizeAttenuation, controls.color);
+                sceneOrtho.children.forEach(function (child) {
+                    if (child instanceof THREE.Sprite) sceneOrtho.remove(child);
+                });
+                createSprite(controls.size, controls.transparent, controls.opacity, controls.color, controls.sprite);
             };
         };
         var gui = new dat.GUI();
-        gui.add(controls, 'size', 0, 20).onChange(controls.redraw);
+        gui.add(controls, 'sprite', 0, 4).step(1).onChange(controls.redraw);
+        gui.add(controls, 'size', 0, 120).onChange(controls.redraw);
         gui.add(controls, 'transparent').onChange(controls.redraw);
         gui.add(controls, 'opacity', 0, 1).onChange(controls.redraw);
         gui.addColor(controls, 'color').onChange(controls.redraw);
-        gui.add(controls, 'sizeAttenuation').onChange(controls.redraw);
         controls.redraw();
         render();
-        function createPointCloud(size, transparent, opacity, sizeAttenuation, color) {
-            var texture = THREE.ImageUtils.loadTexture("assets/textures/particles/raindrop-3.png");
-            var geom = new THREE.Geometry();
-            var material = new THREE.ParticleBasicMaterial({
-                size: size,
-                transparent: transparent,
-                opacity: opacity,
-                map: texture,
-                blending: THREE.AdditiveBlending,
-                sizeAttenuation: sizeAttenuation,
-                color: color
-            });
-            var range = 40;
-            for (var i = 0; i < 1500; i++) {
-                var particle = new THREE.Vector3(
-                        Math.random() * range - range / 2,
-                        Math.random() * range * 1.5,
-                        Math.random() * range - range / 2);
-                particle.velocityY = 0.1 + Math.random() / 5;
-                particle.velocityX = (Math.random() - 0.5) / 3;
-                geom.vertices.push(particle);
-            }
-            cloud = new THREE.ParticleSystem(geom, material);
-            cloud.sortParticles = true;
-            scene.add(cloud);
+        function createSprite(size, transparent, opacity, color, spriteNumber) {
+            var spriteMaterial = new THREE.SpriteMaterial({
+                        opacity: opacity,
+                        color: color,
+                        transparent: transparent,
+                        map: getTexture()
+                    }
+            );
+            // we have 1 row, with five sprites
+            spriteMaterial.map.offset = new THREE.Vector2(0.2 * spriteNumber, 0);
+            spriteMaterial.map.repeat = new THREE.Vector2(1 / 5, 1);
+            spriteMaterial.depthTest = false;
+            spriteMaterial.blending = THREE.AdditiveBlending;
+            var sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(size, size, size);
+            sprite.position.set(100, 50, -10);
+            sprite.velocityX = 5;
+            sceneOrtho.add(sprite);
         }
+        var step = 0;
         function render() {
             stats.update();
-            var vertices = cloud.geometry.vertices;
-            vertices.forEach(function (v) {
-                v.y = v.y - (v.velocityY);
-                v.x = v.x - (v.velocityX);
-                if (v.y <= 0) v.y = 60;
-                if (v.x <= -20 || v.x >= 20) v.velocityX = v.velocityX * -1;
+            camera.position.y = Math.sin(step += 0.01) * 20;
+            sceneOrtho.children.forEach(function (e) {
+                if (e instanceof THREE.Sprite) {
+                    // move the sprite along the bottom
+                    e.position.x = e.position.x + e.velocityX;
+                    if (e.position.x > window.innerWidth) {
+                        e.velocityX = -5;
+                        e.material.map.offset.set(1 / 5 * (controls.sprite % 4), 0);
+                    }
+                    if (e.position.x < 0) {
+                        e.velocityX = 5;
+                    }
+                }
             });
             requestAnimationFrame(render);
             webGLRenderer.render(scene, camera);
+            webGLRenderer.autoClear = false;
+            webGLRenderer.render(sceneOrtho, cameraOrtho);
         }
         function initStats() {
             var stats = new Stats();
