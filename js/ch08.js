@@ -5,99 +5,163 @@ var stats = initStats();
         var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         // create a render and set the size
         var webGLRenderer = new THREE.WebGLRenderer();
-        webGLRenderer.setClearColor(0x000000);
+        webGLRenderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
         webGLRenderer.setSize(window.innerWidth, window.innerHeight);
         webGLRenderer.shadowMapEnabled = true;
+        // add the sphere to the scene
         // position and point the camera to the center of the scene
-        camera.position.x = -30;
-        camera.position.y = 40;
-        camera.position.z = 50;
-        camera.lookAt(new THREE.Vector3(10, 0, 0));
+        camera.position.x = 30;
+        camera.position.y = 30;
+        camera.position.z = 30;
+        camera.lookAt(new THREE.Vector3(0, 0, 0));
+        var ground = new THREE.PlaneGeometry(100, 100, 50, 50);
+        var groundMesh = THREE.SceneUtils.createMultiMaterialObject(ground,
+                [new THREE.MeshBasicMaterial({wireframe: true, overdraw: true, color: 000000}),
+                    new THREE.MeshBasicMaterial({color: 0x00ff00, transparent: true, opacity: 0.5}
+                    )
+                ]);
+        groundMesh.rotation.x = -0.5 * Math.PI;
+        scene.add(groundMesh);
         // add the output of the renderer to the html element
         document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
         // call the render function
-        var step = 0;
-        var knot;
+        var step = 0.03;
+        var sphere;
+        var cube;
+        var group;
+        var bboxMesh;
         // setup the control gui
         var controls = new function () {
             // we need the first child, since it's a multimaterial
-            this.radius = 13;
-            this.tube = 1.7;
-            this.radialSegments = 156;
-            this.tubularSegments = 12;
-            this.p = 5;
-            this.q = 4;
-            this.heightScale = 3.5;
-            this.asParticles = false;
+            this.cubePosX = 0;
+            this.cubePosY = 3;
+            this.cubePosZ = 10;
+            this.spherePosX = 10;
+            this.spherePosY = 5;
+            this.spherePosZ = 0;
+            this.groupPosX = 10;
+            this.groupPosY = 5;
+            this.groupPosZ = 0;
+            this.grouping = false;
             this.rotate = false;
+            this.groupScale = 1;
+            this.cubeScale = 1;
+            this.sphereScale = 1;
             this.redraw = function () {
                 // remove the old plane
-                if (knot) scene.remove(knot);
+                //scene.remove(sphere);
+                //scene.remove(cube);
+                scene.remove(group);
                 // create a new one
-                var geom = new THREE.TorusKnotGeometry(controls.radius, controls.tube, Math.round(controls.radialSegments), Math.round(controls.tubularSegments), Math.round(controls.p), Math.round(controls.q), controls.heightScale);
-                if (controls.asParticles) {
-                    knot = createPointCloud(geom);
-                } else {
-                    knot = createMesh(geom);
-                }
+                sphere = createMesh(new THREE.SphereGeometry(5, 10, 10));
+                cube = createMesh(new THREE.BoxGeometry(6, 6, 6));
+                sphere.position.set(controls.spherePosX, controls.spherePosY, controls.spherePosZ);
+                cube.position.set(controls.cubePosX, controls.cubePosY, controls.cubePosZ);
                 // add it to the scene.
-                scene.add(knot);
+                // also create a group, only used for rotating
+                group = new THREE.Group();
+                group.add(sphere);
+                group.add(cube);
+                scene.add(group);
+                controls.positionBoundingBox();
+                var arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), group.position, 10, 0x0000ff);
+                scene.add(arrow);
             };
+            this.positionBoundingBox = function () {
+                scene.remove(bboxMesh);
+                var box = setFromObject(group);
+                var width = box.max.x - box.min.x;
+                var height = box.max.y - box.min.y;
+                var depth = box.max.z - box.min.z;
+                var bbox = new THREE.BoxGeometry(width, height, depth);
+                bboxMesh = new THREE.Mesh(bbox, new THREE.MeshBasicMaterial({
+                    color: 0x000000,
+                    vertexColors: THREE.VertexColors,
+                    wireframeLinewidth: 2,
+                    wireframe: true
+                }));
+//            scene.add(bboxMesh);
+                bboxMesh.position.x = ((box.min.x + box.max.x) / 2);
+                bboxMesh.position.y = ((box.min.y + box.max.y) / 2);
+                bboxMesh.position.z = ((box.min.z + box.max.z) / 2);
+            }
         };
         var gui = new dat.GUI();
-        gui.add(controls, 'radius', 0, 40).onChange(controls.redraw);
-        gui.add(controls, 'tube', 0, 40).onChange(controls.redraw);
-        gui.add(controls, 'radialSegments', 0, 400).step(1).onChange(controls.redraw);
-        gui.add(controls, 'tubularSegments', 1, 20).step(1).onChange(controls.redraw);
-        gui.add(controls, 'p', 1, 10).step(1).onChange(controls.redraw);
-        gui.add(controls, 'q', 1, 15).step(1).onChange(controls.redraw);
-        gui.add(controls, 'heightScale', 0, 5).onChange(controls.redraw);
-        gui.add(controls, 'asParticles').onChange(controls.redraw);
-        gui.add(controls, 'rotate').onChange(controls.redraw);
+        var sphereFolder = gui.addFolder("sphere");
+        sphereFolder.add(controls, "spherePosX", -20, 20).onChange(function (e) {
+            sphere.position.x = e;
+            controls.positionBoundingBox()
+        });
+        sphereFolder.add(controls, "spherePosZ", -20, 20).onChange(function (e) {
+            sphere.position.z = e;
+            controls.positionBoundingBox()
+        });
+        sphereFolder.add(controls, "spherePosY", -20, 20).onChange(function (e) {
+            sphere.position.y = e;
+            controls.positionBoundingBox()
+        });
+        sphereFolder.add(controls, "sphereScale", 0, 3).onChange(function (e) {
+            sphere.scale.set(e, e, e);
+            controls.positionBoundingBox()
+        });
+        var cubeFolder = gui.addFolder("cube");
+        cubeFolder.add(controls, "cubePosX", -20, 20).onChange(function (e) {
+            cube.position.x = e;
+            controls.positionBoundingBox()
+        });
+        cubeFolder.add(controls, "cubePosZ", -20, 20).onChange(function (e) {
+            cube.position.z = e;
+            controls.positionBoundingBox()
+        });
+        cubeFolder.add(controls, "cubePosY", -20, 20).onChange(function (e) {
+            cube.position.y = e;
+            controls.positionBoundingBox()
+        });
+        cubeFolder.add(controls, "cubeScale", 0, 3).onChange(function (e) {
+            cube.scale.set(e, e, e);
+            controls.positionBoundingBox()
+        });
+        var cubeFolder = gui.addFolder("group");
+        cubeFolder.add(controls, "groupPosX", -20, 20).onChange(function (e) {
+            group.position.x = e;
+            controls.positionBoundingBox()
+        });
+        cubeFolder.add(controls, "groupPosZ", -20, 20).onChange(function (e) {
+            group.position.z = e;
+            controls.positionBoundingBox()
+        });
+        cubeFolder.add(controls, "groupPosY", -20, 20).onChange(function (e) {
+            group.position.y = e;
+            controls.positionBoundingBox()
+        });
+        cubeFolder.add(controls, "groupScale", 0, 3).onChange(function (e) {
+            group.scale.set(e, e, e);
+            controls.positionBoundingBox()
+        });
+        gui.add(controls, "grouping");
+        gui.add(controls, "rotate");
         controls.redraw();
         render();
-        // from THREE.js examples
-        function generateSprite() {
-            var canvas = document.createElement('canvas');
-            canvas.width = 16;
-            canvas.height = 16;
-            var context = canvas.getContext('2d');
-            var gradient = context.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width / 2);
-            gradient.addColorStop(0, 'rgba(255,255,255,1)');
-            gradient.addColorStop(0.2, 'rgba(0,255,255,1)');
-            gradient.addColorStop(0.4, 'rgba(0,0,64,1)');
-            gradient.addColorStop(1, 'rgba(0,0,0,1)');
-            context.fillStyle = gradient;
-            context.fillRect(0, 0, canvas.width, canvas.height);
-            var texture = new THREE.Texture(canvas);
-            texture.needsUpdate = true;
-            return texture;
-        }
-        function createPointCloud(geom) {
-            var material = new THREE.PointCloudMaterial({
-                color: 0xffffff,
-                size: 3,
-                transparent: true,
-                blending: THREE.AdditiveBlending,
-                map: generateSprite()
-            });
-            var cloud = new THREE.PointCloud(geom, material);
-            cloud.sortParticles = true;
-            return cloud;
-        }
         function createMesh(geom) {
             // assign two materials
-            var meshMaterial = new THREE.MeshNormalMaterial({});
+            var meshMaterial = new THREE.MeshNormalMaterial();
             meshMaterial.side = THREE.DoubleSide;
+            var wireFrameMat = new THREE.MeshBasicMaterial();
+            wireFrameMat.wireframe = true;
             // create a multimaterial
-            var mesh = THREE.SceneUtils.createMultiMaterialObject(geom, [meshMaterial]);
-            return mesh;
+            var plane = THREE.SceneUtils.createMultiMaterialObject(geom, [meshMaterial, wireFrameMat]);
+            return plane;
         }
         function render() {
             stats.update();
-            if (controls.rotate) {
-                knot.rotation.y = step += 0.01;
+            if (controls.grouping && controls.rotate) {
+                group.rotation.y += step;
             }
+            if (controls.rotate && !controls.grouping) {
+                sphere.rotation.y += step;
+                cube.rotation.y += step;
+            }
+//        controls.positionBoundingBox();
             // render using requestAnimationFrame
             requestAnimationFrame(render);
             webGLRenderer.render(scene, camera);
@@ -111,4 +175,22 @@ var stats = initStats();
             stats.domElement.style.top = '0px';
             document.getElementById("Stats-output").appendChild(stats.domElement);
             return stats;
+        }
+        // http://jsfiddle.net/MREL4/
+        function setFromObject(object) {
+            var box = new THREE.Box3();
+            var v1 = new THREE.Vector3();
+            object.updateMatrixWorld(true);
+            box.makeEmpty();
+            object.traverse(function (node) {
+                if (node.geometry !== undefined && node.geometry.vertices !== undefined) {
+                    var vertices = node.geometry.vertices;
+                    for (var i = 0, il = vertices.length; i < il; i++) {
+                        v1.copy(vertices[i]);
+                        v1.applyMatrix4(node.matrixWorld);
+                        box.expandByPoint(v1);
+                    }
+                }
+            });
+            return box;
         }
