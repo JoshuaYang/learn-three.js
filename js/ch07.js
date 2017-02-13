@@ -1,90 +1,106 @@
 var stats = initStats();
         // create a scene, that will hold all our elements such as objects, cameras and lights.
         var scene = new THREE.Scene();
-        var sceneOrtho = new THREE.Scene();
         // create a camera, which defines where we're looking at.
-        var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 250);
-        var cameraOrtho = new THREE.OrthographicCamera(0, window.innerWidth, window.innerHeight, 0, -10, 10);
+        var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         // create a render and set the size
         var webGLRenderer = new THREE.WebGLRenderer();
-        webGLRenderer.setClearColor(new THREE.Color(0x000000, 1.0));
+        webGLRenderer.setClearColor(0x000000);
         webGLRenderer.setSize(window.innerWidth, window.innerHeight);
+        webGLRenderer.shadowMapEnabled = true;
         // position and point the camera to the center of the scene
-        camera.position.x = 0;
-        camera.position.y = 0;
+        camera.position.x = -30;
+        camera.position.y = 40;
         camera.position.z = 50;
+        camera.lookAt(new THREE.Vector3(10, 0, 0));
         // add the output of the renderer to the html element
         document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
-        var material = new THREE.MeshNormalMaterial();
-        var geom = new THREE.SphereGeometry(15, 20, 20);
-        var mesh = new THREE.Mesh(geom, material);
-        scene.add(mesh);
-        var getTexture = function () {
-            var texture = new THREE.TextureLoader().load("assets/textures/particles/sprite-sheet.png");
-            return texture;
-        };
+        // call the render function
+        var step = 0;
+        var knot;
+        // setup the control gui
         var controls = new function () {
-            this.size = 150;
-            this.sprite = 0;
-            this.transparent = true;
-            this.opacity = 0.6;
-            this.color = 0xffffff;
-            this.rotateSystem = true;
+            // we need the first child, since it's a multimaterial
+            this.radius = 13;
+            this.tube = 1.7;
+            this.radialSegments = 156;
+            this.tubularSegments = 12;
+            this.p = 5;
+            this.q = 4;
+            this.heightScale = 3.5;
+            this.asParticles = false;
+            this.rotate = false;
             this.redraw = function () {
-                sceneOrtho.children.forEach(function (child) {
-                    if (child instanceof THREE.Sprite) sceneOrtho.remove(child);
-                });
-                createSprite(controls.size, controls.transparent, controls.opacity, controls.color, controls.sprite);
+                // remove the old plane
+                if (knot) scene.remove(knot);
+                // create a new one
+                var geom = new THREE.TorusKnotGeometry(controls.radius, controls.tube, Math.round(controls.radialSegments), Math.round(controls.tubularSegments), Math.round(controls.p), Math.round(controls.q), controls.heightScale);
+                if (controls.asParticles) {
+                    knot = createPointCloud(geom);
+                } else {
+                    knot = createMesh(geom);
+                }
+                // add it to the scene.
+                scene.add(knot);
             };
         };
         var gui = new dat.GUI();
-        gui.add(controls, 'sprite', 0, 4).step(1).onChange(controls.redraw);
-        gui.add(controls, 'size', 0, 120).onChange(controls.redraw);
-        gui.add(controls, 'transparent').onChange(controls.redraw);
-        gui.add(controls, 'opacity', 0, 1).onChange(controls.redraw);
-        gui.addColor(controls, 'color').onChange(controls.redraw);
+        gui.add(controls, 'radius', 0, 40).onChange(controls.redraw);
+        gui.add(controls, 'tube', 0, 40).onChange(controls.redraw);
+        gui.add(controls, 'radialSegments', 0, 400).step(1).onChange(controls.redraw);
+        gui.add(controls, 'tubularSegments', 1, 20).step(1).onChange(controls.redraw);
+        gui.add(controls, 'p', 1, 10).step(1).onChange(controls.redraw);
+        gui.add(controls, 'q', 1, 15).step(1).onChange(controls.redraw);
+        gui.add(controls, 'heightScale', 0, 5).onChange(controls.redraw);
+        gui.add(controls, 'asParticles').onChange(controls.redraw);
+        gui.add(controls, 'rotate').onChange(controls.redraw);
         controls.redraw();
         render();
-        function createSprite(size, transparent, opacity, color, spriteNumber) {
-            var spriteMaterial = new THREE.SpriteMaterial({
-                        opacity: opacity,
-                        color: color,
-                        transparent: transparent,
-                        map: getTexture()
-                    }
-            );
-            // we have 1 row, with five sprites
-            spriteMaterial.map.offset = new THREE.Vector2(0.2 * spriteNumber, 0);
-            spriteMaterial.map.repeat = new THREE.Vector2(1 / 5, 1);
-            spriteMaterial.depthTest = false;
-            spriteMaterial.blending = THREE.AdditiveBlending;
-            var sprite = new THREE.Sprite(spriteMaterial);
-            sprite.scale.set(size, size, size);
-            sprite.position.set(100, 50, -10);
-            sprite.velocityX = 5;
-            sceneOrtho.add(sprite);
+        // from THREE.js examples
+        function generateSprite() {
+            var canvas = document.createElement('canvas');
+            canvas.width = 16;
+            canvas.height = 16;
+            var context = canvas.getContext('2d');
+            var gradient = context.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width / 2);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.2, 'rgba(0,255,255,1)');
+            gradient.addColorStop(0.4, 'rgba(0,0,64,1)');
+            gradient.addColorStop(1, 'rgba(0,0,0,1)');
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            var texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            return texture;
         }
-        var step = 0;
+        function createPointCloud(geom) {
+            var material = new THREE.PointCloudMaterial({
+                color: 0xffffff,
+                size: 3,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                map: generateSprite()
+            });
+            var cloud = new THREE.PointCloud(geom, material);
+            cloud.sortParticles = true;
+            return cloud;
+        }
+        function createMesh(geom) {
+            // assign two materials
+            var meshMaterial = new THREE.MeshNormalMaterial({});
+            meshMaterial.side = THREE.DoubleSide;
+            // create a multimaterial
+            var mesh = THREE.SceneUtils.createMultiMaterialObject(geom, [meshMaterial]);
+            return mesh;
+        }
         function render() {
             stats.update();
-            camera.position.y = Math.sin(step += 0.01) * 20;
-            sceneOrtho.children.forEach(function (e) {
-                if (e instanceof THREE.Sprite) {
-                    // move the sprite along the bottom
-                    e.position.x = e.position.x + e.velocityX;
-                    if (e.position.x > window.innerWidth) {
-                        e.velocityX = -5;
-                        e.material.map.offset.set(1 / 5 * (controls.sprite % 4), 0);
-                    }
-                    if (e.position.x < 0) {
-                        e.velocityX = 5;
-                    }
-                }
-            });
+            if (controls.rotate) {
+                knot.rotation.y = step += 0.01;
+            }
+            // render using requestAnimationFrame
             requestAnimationFrame(render);
             webGLRenderer.render(scene, camera);
-            webGLRenderer.autoClear = false;
-            webGLRenderer.render(sceneOrtho, cameraOrtho);
         }
         function initStats() {
             var stats = new Stats();
