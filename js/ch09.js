@@ -3,13 +3,16 @@ var stats = initStats();
         var scene = new THREE.Scene();
         // create a camera, which defines where we're looking at.
         var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        var orbitControls = new THREE.OrbitControls(camera);
+        orbitControls.aotoRotate = true;
+        // orbitControls.domElement = document.querySelector('#WebGL-output');
+
+
         // create a render and set the size
         var renderer = new THREE.WebGLRenderer();
         renderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
         renderer.setSize(window.innerWidth, window.innerHeight);
-        var projector = new THREE.Projector();
-        document.addEventListener('mousedown', onDocumentMouseDown, false);
-        document.addEventListener('mousemove', onDocumentMouseMove, false);
         // create the ground plane
         var planeGeometry = new THREE.PlaneGeometry(60, 20, 1, 1);
         var planeMaterial = new THREE.MeshLambertMaterial({color: 0xffffff});
@@ -66,16 +69,14 @@ var stats = initStats();
             this.rotationSpeed = 0.02;
             this.bouncingSpeed = 0.03;
             this.scalingSpeed = 0.03;
-            this.showRay = false;
         };
         var gui = new dat.GUI();
         gui.add(controls, 'rotationSpeed', 0, 0.5);
         gui.add(controls, 'bouncingSpeed', 0, 0.5);
         gui.add(controls, 'scalingSpeed', 0, 0.5);
-        gui.add(controls, 'showRay').onChange(function (e) {
-            if (tube) scene.remove(tube)
-        });
-        render();
+
+
+        var clock = new THREE.Clock();
         function render() {
             stats.update();
             // rotate the cube around its axes
@@ -93,41 +94,10 @@ var stats = initStats();
             var scaleZ = Math.abs(Math.sin(scalingStep / 7));
             cylinder.scale.set(scaleX, scaleY, scaleZ);
             // render using requestAnimationFrame
+            var delta = clock.getDelta();
+            orbitControls.update(delta);
             renderer.render(scene, camera);
             requestAnimationFrame(render);
-        }
-        var projector = new THREE.Projector();
-        var tube;
-        function onDocumentMouseDown(event) {
-            var vector = new THREE.Vector3(( event.clientX / window.innerWidth ) * 2 - 1, -( event.clientY / window.innerHeight ) * 2 + 1, 0.5);
-            vector = vector.unproject(camera);
-            var raycaster = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
-            var intersects = raycaster.intersectObjects([sphere, cylinder, cube]);
-            if (intersects.length > 0) {
-                console.log(intersects[0]);
-                intersects[0].object.material.transparent = true;
-                intersects[0].object.material.opacity = 0.1;
-            }
-        }
-        function onDocumentMouseMove(event) {
-            if (controls.showRay) {
-                var vector = new THREE.Vector3(( event.clientX / window.innerWidth ) * 2 - 1, -( event.clientY / window.innerHeight ) * 2 + 1, 0.5);
-                vector = vector.unproject(camera);
-                var raycaster = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
-                var intersects = raycaster.intersectObjects([sphere, cylinder, cube]);
-                if (intersects.length > 0) {
-                    var points = [];
-                    points.push(new THREE.Vector3(-30, 39.8, 30));
-                    points.push(intersects[0].point);
-                    var mat = new THREE.MeshBasicMaterial({color: 0xff0000, transparent: true, opacity: 0.6});
-                    var tubeGeometry = new THREE.TubeGeometry(new THREE.SplineCurve3(points), 60, 0.001);
-                    if (tube) scene.remove(tube);
-                    if (controls.showRay) {
-                        tube = new THREE.Mesh(tubeGeometry, mat);
-                        scene.add(tube);
-                    }
-                }
-            }
         }
         function initStats() {
             var stats = new Stats();
@@ -139,3 +109,5 @@ var stats = initStats();
             document.getElementById("Stats-output").appendChild(stats.domElement);
             return stats;
         }
+
+        render();
