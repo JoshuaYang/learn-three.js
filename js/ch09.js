@@ -2,102 +2,100 @@ var stats = initStats();
         // create a scene, that will hold all our elements such as objects, cameras and lights.
         var scene = new THREE.Scene();
         // create a camera, which defines where we're looking at.
-        var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-
-        var orbitControls = new THREE.OrbitControls(camera);
-        orbitControls.aotoRotate = true;
-        // orbitControls.domElement = document.querySelector('#WebGL-output');
-
-
+        var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
         // create a render and set the size
-        var renderer = new THREE.WebGLRenderer();
-        renderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        // create the ground plane
-        var planeGeometry = new THREE.PlaneGeometry(60, 20, 1, 1);
-        var planeMaterial = new THREE.MeshLambertMaterial({color: 0xffffff});
-        var plane = new THREE.Mesh(planeGeometry, planeMaterial);
-        // rotate and position the plane
-        plane.rotation.x = -0.5 * Math.PI;
-        plane.position.x = 15;
-        plane.position.y = 0;
-        plane.position.z = 0;
-        // add the plane to the scene
-        scene.add(plane);
-        // create a cube
-        var cubeGeometry = new THREE.BoxGeometry(4, 4, 4);
-        var cubeMaterial = new THREE.MeshLambertMaterial({color: 0xff0000});
-        var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-        // position the cube
-        cube.position.x = -9;
-        cube.position.y = 3;
-        cube.position.z = 0;
-        // add the cube to the scene
-        scene.add(cube);
-        var sphereGeometry = new THREE.SphereGeometry(4, 20, 20);
-        var sphereMaterial = new THREE.MeshLambertMaterial({color: 0x7777ff});
-        var sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-        // position the sphere
-        sphere.position.x = 20;
-        sphere.position.y = 0;
-        sphere.position.z = 2;
-        // add the sphere to the scene
-        scene.add(sphere);
-        var cylinderGeometry = new THREE.CylinderGeometry(2, 2, 20);
-        var cylinderMaterial = new THREE.MeshLambertMaterial({color: 0x77ff77});
-        var cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
-        cylinder.position.set(0, 0, 1);
-        scene.add(cylinder);
+        var webGLRenderer = new THREE.WebGLRenderer();
+        webGLRenderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
+        webGLRenderer.setSize(window.innerWidth, window.innerHeight);
+        webGLRenderer.shadowMap.enabled = true;
         // position and point the camera to the center of the scene
-        camera.position.x = -30;
-        camera.position.y = 40;
-        camera.position.z = 30;
-        camera.lookAt(scene.position);
-        // add subtle ambient lighting
-        var ambientLight = new THREE.AmbientLight(0x0c0c0c);
-        scene.add(ambientLight);
+        camera.position.x = 250;
+        camera.position.y = 250;
+        camera.position.z = 350;
+        camera.lookAt(new THREE.Vector3(100, 50, 0));
         // add spotlight for the shadows
-        var spotLight = new THREE.SpotLight(0xffffff);
-        spotLight.position.set(-40, 60, -10);
+        var spotLight = new THREE.DirectionalLight(0xffffff);
+        spotLight.position.set(300, 200, 300);
+        spotLight.intensity = 1;
         scene.add(spotLight);
         // add the output of the renderer to the html element
-        document.getElementById("WebGL-output").appendChild(renderer.domElement);
+        document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
         // call the render function
         var step = 0;
-        var scalingStep = 0;
+        // setup the control gui
         var controls = new function () {
-            this.rotationSpeed = 0.02;
-            this.bouncingSpeed = 0.03;
-            this.scalingSpeed = 0.03;
+            this.keyframe = 0;
         };
         var gui = new dat.GUI();
-        gui.add(controls, 'rotationSpeed', 0, 0.5);
-        gui.add(controls, 'bouncingSpeed', 0, 0.5);
-        gui.add(controls, 'scalingSpeed', 0, 0.5);
-
-
+        gui.add(controls, "keyframe", 0, 15).step(1).onChange(function (e) {
+            showFrame(e);
+        });
+        var mesh;
+        var meshAnim;
+        var frames = [];
+        var currentMesh;
         var clock = new THREE.Clock();
+
+        var loader = new THREE.JSONLoader();
+        loader.load('assets/models/horse.js', function (geometry, mat) {
+            var mat = new THREE.MeshLambertMaterial(
+                    {
+                        morphTargets: true,
+                        vertexColors: THREE.FaceColors
+                    });
+            var mat2 = new THREE.MeshLambertMaterial(
+                    {color: 0xffffff, vertexColors: THREE.FaceColors});
+            mesh = new THREE.Mesh(geometry, mat);
+            mesh.position.x = -100;
+            frames.push(mesh);
+            currentMesh = mesh;
+            morphColorsToFaceColors(geometry);
+            mesh.geometry.morphTargets.forEach(function (e) {
+                var geom = new THREE.Geometry();
+                geom.vertices = e.vertices;
+                geom.faces = geometry.faces;
+                var morpMesh = new THREE.Mesh(geom, mat2);
+                frames.push(morpMesh);
+                morpMesh.position.x = -100;
+            });
+            geometry.computeVertexNormals();
+            geometry.computeFaceNormals();
+            geometry.computeMorphNormals();
+
+            meshAnim = new THREE.MorphBlendMesh(geometry, mat);
+            meshAnim.duration = 1000;
+            meshAnim.position.x = 200;
+            meshAnim.position.z = 0;
+            scene.add(meshAnim);
+            showFrame(0);
+        }, 'assets/models');
+        function showFrame(e) {
+            scene.remove(currentMesh);
+            scene.add(frames[e]);
+            currentMesh = frames[e];
+            console.log(currentMesh);
+        }
+        function morphColorsToFaceColors(geometry) {
+            if (geometry.morphColors && geometry.morphColors.length) {
+                var colorMap = geometry.morphColors[0];
+                for (var i = 0; i < colorMap.colors.length; i++) {
+                    geometry.faces[i].color = colorMap.colors[i];
+                    geometry.faces[i].color.offsetHSL(0, 0.3, 0);
+                }
+            }
+        }
+        render();
         function render() {
             stats.update();
-            // rotate the cube around its axes
-            cube.rotation.x += controls.rotationSpeed;
-            cube.rotation.y += controls.rotationSpeed;
-            cube.rotation.z += controls.rotationSpeed;
-            // bounce the sphere up and down
-            step += controls.bouncingSpeed;
-            sphere.position.x = 20 + ( 10 * (Math.cos(step)));
-            sphere.position.y = 2 + ( 10 * Math.abs(Math.sin(step)));
-            // scale the cylinder
-            scalingStep += controls.scalingSpeed;
-            var scaleX = Math.abs(Math.sin(scalingStep / 4));
-            var scaleY = Math.abs(Math.cos(scalingStep / 5));
-            var scaleZ = Math.abs(Math.sin(scalingStep / 7));
-            cylinder.scale.set(scaleX, scaleY, scaleZ);
-            // render using requestAnimationFrame
             var delta = clock.getDelta();
-            orbitControls.update(delta);
-            renderer.render(scene, camera);
+            webGLRenderer.clear();
+            if (meshAnim) {
+                meshAnim.update(delta * 1000);
+                meshAnim.rotation.y += 0.01;
+            }
+            // render using requestAnimationFrame
             requestAnimationFrame(render);
+            webGLRenderer.render(scene, camera);
         }
         function initStats() {
             var stats = new Stats();
@@ -109,5 +107,3 @@ var stats = initStats();
             document.getElementById("Stats-output").appendChild(stats.domElement);
             return stats;
         }
-
-        render();
