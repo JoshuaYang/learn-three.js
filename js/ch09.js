@@ -33,6 +33,9 @@ var stats = initStats();
             mesh.rotation.z = 0.7 * Math.PI;
             // add the mesh
             scene.add(mesh);
+
+            helper = new THREE.SkeletonHelper( mesh );               helper.material.linewidth = 2;               helper.visible = true;               scene.add( helper );
+
             // and start the animation
             tween.start();
         }, '../assets/models');
