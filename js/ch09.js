@@ -2,97 +2,66 @@ var stats = initStats();
         // create a scene, that will hold all our elements such as objects, cameras and lights.
         var scene = new THREE.Scene();
         // create a camera, which defines where we're looking at.
-        var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+        var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         // create a render and set the size
         var webGLRenderer = new THREE.WebGLRenderer();
         webGLRenderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
         webGLRenderer.setSize(window.innerWidth, window.innerHeight);
-        webGLRenderer.shadowMap.enabled = true;
+        webGLRenderer.shadowMapEnabled = true;
         // position and point the camera to the center of the scene
-        camera.position.x = 250;
-        camera.position.y = 250;
-        camera.position.z = 350;
-        camera.lookAt(new THREE.Vector3(100, 50, 0));
+        camera.position.x = 0;
+        camera.position.y = 0;
+        camera.position.z = 4;
+        camera.lookAt(new THREE.Vector3(0, 0, 0));
         // add spotlight for the shadows
-        var spotLight = new THREE.DirectionalLight(0xffffff);
-        spotLight.position.set(300, 200, 300);
-        spotLight.intensity = 1;
+        var spotLight = new THREE.SpotLight(0xffffff);
+        spotLight.position.set(0, 50, 30);
+        spotLight.intensity = 2;
         scene.add(spotLight);
         // add the output of the renderer to the html element
         document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
         // call the render function
         var step = 0;
-        // setup the control gui
-        var controls = new function () {
-            this.keyframe = 0;
-        };
-        var gui = new dat.GUI();
-        gui.add(controls, "keyframe", 0, 15).step(1).onChange(function (e) {
-            showFrame(e);
-        });
         var mesh;
-        var meshAnim;
-        var frames = [];
-        var currentMesh;
         var clock = new THREE.Clock();
-
         var loader = new THREE.JSONLoader();
-        loader.load('assets/models/horse.js', function (geometry, mat) {
-            var mat = new THREE.MeshLambertMaterial(
-                    {
-                        morphTargets: true,
-                        vertexColors: THREE.FaceColors
-                    });
-            var mat2 = new THREE.MeshLambertMaterial(
-                    {color: 0xffffff, vertexColors: THREE.FaceColors});
-            mesh = new THREE.Mesh(geometry, mat);
-            mesh.position.x = -100;
-            frames.push(mesh);
-            currentMesh = mesh;
-            morphColorsToFaceColors(geometry);
-            mesh.geometry.morphTargets.forEach(function (e) {
-                var geom = new THREE.Geometry();
-                geom.vertices = e.vertices;
-                geom.faces = geometry.faces;
-                var morpMesh = new THREE.Mesh(geom, mat2);
-                frames.push(morpMesh);
-                morpMesh.position.x = -100;
-            });
-            geometry.computeVertexNormals();
-            geometry.computeFaceNormals();
-            geometry.computeMorphNormals();
-
-            meshAnim = new THREE.MorphBlendMesh(geometry, mat);
-            meshAnim.duration = 1000;
-            meshAnim.position.x = 200;
-            meshAnim.position.z = 0;
-            scene.add(meshAnim);
-            showFrame(0);
-        }, 'assets/models');
-        function showFrame(e) {
-            scene.remove(currentMesh);
-            scene.add(frames[e]);
-            currentMesh = frames[e];
-            console.log(currentMesh);
-        }
-        function morphColorsToFaceColors(geometry) {
-            if (geometry.morphColors && geometry.morphColors.length) {
-                var colorMap = geometry.morphColors[0];
-                for (var i = 0; i < colorMap.colors.length; i++) {
-                    geometry.faces[i].color = colorMap.colors[i];
-                    geometry.faces[i].color.offsetHSL(0, 0.3, 0);
-                }
-            }
-        }
+        loader.load('assets/models/hand-1.js', function (geometry, mat) {
+            var mat = new THREE.MeshLambertMaterial({color: 0xF0C8C9, skinning: true});
+            mesh = new THREE.SkinnedMesh(geometry, mat);
+            // rotate the complete hand
+            mesh.rotation.x = 0.5 * Math.PI;
+            mesh.rotation.z = 0.7 * Math.PI;
+            // add the mesh
+            scene.add(mesh);
+            // and start the animation
+            tween.start();
+        }, '../assets/models');
+        var onUpdate = function () {
+            var pos = this.pos;
+            console.log(mesh.skeleton);
+            // rotate the fingers
+            mesh.skeleton.bones[5].rotation.set(0, 0, pos);
+            mesh.skeleton.bones[6].rotation.set(0, 0, pos);
+            mesh.skeleton.bones[10].rotation.set(0, 0, pos);
+            mesh.skeleton.bones[11].rotation.set(0, 0, pos);
+            mesh.skeleton.bones[15].rotation.set(0, 0, pos);
+            mesh.skeleton.bones[16].rotation.set(0, 0, pos);
+            mesh.skeleton.bones[20].rotation.set(0, 0, pos);
+            mesh.skeleton.bones[21].rotation.set(0, 0, pos);
+            // rotate the wrist
+            mesh.skeleton.bones[1].rotation.set(pos, 0, 0);
+        };
+        var tween = new TWEEN.Tween({pos: -1})
+                .to({pos: 0}, 3000)
+                .easing(TWEEN.Easing.Cubic.InOut)
+                .yoyo(true)
+                .repeat(Infinity)
+                .onUpdate(onUpdate);
         render();
         function render() {
             stats.update();
+            TWEEN.update();
             var delta = clock.getDelta();
-            webGLRenderer.clear();
-            if (meshAnim) {
-                meshAnim.update(delta * 1000);
-                meshAnim.rotation.y += 0.01;
-            }
             // render using requestAnimationFrame
             requestAnimationFrame(render);
             webGLRenderer.render(scene, camera);
