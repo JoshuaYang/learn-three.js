@@ -8,11 +8,11 @@ var stats = initStats();
         webGLRenderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
         webGLRenderer.setSize(window.innerWidth, window.innerHeight);
         webGLRenderer.shadowMapEnabled = true;
-        var sphere1 = createMesh(new THREE.BoxGeometry(15, 15, 2), "stone.jpg");
+        var sphere1 = createMesh(new THREE.BoxGeometry(15, 15, 15), "plaster.jpg");
         sphere1.rotation.y = -0.5;
         sphere1.position.x = 12;
         scene.add(sphere1);
-        var sphere2 = createMesh(new THREE.BoxGeometry(15, 15, 2), "stone.jpg", "stone-bump.jpg");
+        var sphere2 = createMesh(new THREE.BoxGeometry(15, 15, 15), "plaster.jpg", "plaster-normal.jpg");
         sphere2.rotation.y = 0.5;
         sphere2.position.x = -12;
         scene.add(sphere2);
@@ -28,7 +28,7 @@ var stats = initStats();
         // position and point the camera to the center of the scene
         camera.position.x = 00;
         camera.position.y = 12;
-        camera.position.z = 28;
+        camera.position.z = 38;
         camera.lookAt(new THREE.Vector3(0, 0, 0));
         var ambiLight = new THREE.AmbientLight(0x242424);
         scene.add(ambiLight);
@@ -36,6 +36,19 @@ var stats = initStats();
         light.position.set(0, 30, 30);
         light.intensity = 1.2;
         scene.add(light);
+//        var pointColor = "#ff5808";
+        var pointColor = "#ff5808";
+        var directionalLight = new THREE.PointLight(pointColor);
+//        directionalLight.distance = 0;
+//        directionalLight.intensity = 0.5;
+        scene.add(directionalLight);
+        // add a small sphere simulating the pointlight
+        var sphereLight = new THREE.SphereGeometry(0.2);
+        var sphereLightMaterial = new THREE.MeshBasicMaterial({color: 0xac6c25});
+        var sphereLightMesh = new THREE.Mesh(sphereLight, sphereLightMaterial);
+        sphereLightMesh.castShadow = true;
+        sphereLightMesh.position = new THREE.Vector3(3, 3, 3);
+        scene.add(sphereLightMesh);
         // add the output of the renderer to the html element
         document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
         // call the render function
@@ -43,52 +56,91 @@ var stats = initStats();
 //        var polyhedron = createMesh(new THREE.PolyhedronGeometry(vertices, faces, controls.radius, controls.detail));
         // setup the control gui
         var controls = new function () {
-            this.bumpScale = 0.2;
-            this.changeTexture = "weave";
+            this.normalScale = 1;
+            this.changeTexture = "plaster";
             this.rotate = false;
             this.changeTexture = function (e) {
                 var texture = THREE.ImageUtils.loadTexture("assets/textures/general/" + e + ".jpg");
                 sphere2.material.map = texture;
                 sphere1.material.map = texture;
-                var bump = THREE.ImageUtils.loadTexture("assets/textures/general/" + e + "-bump.jpg");
-                sphere2.material.bumpMap = bump;
+                var bump = THREE.ImageUtils.loadTexture("assets/textures/general/" + e + "-normal.jpg");
+                sphere2.material.normalMap = bump;
             };
             this.updateBump = function (e) {
-                console.log(sphere2.material.bumpScale);
-                sphere2.material.bumpScale = e;
+                sphere2.material.normalScale.set(e, e);
             }
         };
         var gui = new dat.GUI();
-        gui.add(controls, "bumpScale", -2, 2).onChange(controls.updateBump);
-        gui.add(controls, "changeTexture", ['stone', 'weave']).onChange(controls.changeTexture);
+        gui.add(controls, "normalScale", -2, 2).onChange(controls.updateBump);
+        gui.add(controls, "changeTexture", ['plaster', 'bathroom', 'metal-floor']).onChange(controls.changeTexture);
         gui.add(controls, "rotate");
         render();
-        function createMesh(geom, imageFile, bump) {
-            var texture = THREE.ImageUtils.loadTexture("assets/textures/general/" + imageFile);
-            geom.computeVertexNormals();
-            var mat = new THREE.MeshPhongMaterial();
-            mat.map = texture;
+        function createMesh(geom, imageFile, normal) {
+            if (normal) {
+                var t = THREE.ImageUtils.loadTexture("assets/textures/general/" + imageFile);
+                var m = THREE.ImageUtils.loadTexture("assets/textures/general/" + normal);
 
-            if (bump) {
-                var bump = THREE.ImageUtils.loadTexture("assets/textures/general/" + bump);
-                mat.bumpMap = bump;
-                mat.bumpScale = 0.2;
-                console.log('d');
+                var mat2 = new THREE.MeshPhongMaterial({
+                    map: t,
+                    normalMap: m,
+                });
+
+                var mesh = new THREE.Mesh(geom, mat2);
+
+                return mesh;
+            } else {
+                var t = THREE.ImageUtils.loadTexture("assets/textures/general/" + imageFile);
+                var mat1 = new THREE.MeshPhongMaterial({
+                    map: t
+                });
+                var mesh = new THREE.Mesh(geom, mat1);
+                return mesh;
             }
-            // create a multimaterial
-            var mesh = new THREE.Mesh(geom, mat);
             return mesh;
         }
+        function createNormalmapShaderMaterial(diffuseMap, normalMap) {
+            var shader = THREE.ShaderLib["normalmap"];
+            var uniforms = THREE.UniformsUtils.clone(shader.uniforms);
+            var dT = THREE.ImageUtils.loadTexture(diffuseMap);
+            var nT = THREE.ImageUtils.loadTexture(normalMap);
+            uniforms["uShininess"].value = 50;
+            uniforms["enableDiffuse"].value = true;
+            uniforms["uDiffuseColor"].value.setHex(0xffffff);
+            uniforms["tDiffuse"].value = dT;
+            uniforms["tNormal"].value = nT;
+            uniforms["uNormalScale"].value.set(1, 1);
+            uniforms["uSpecularColor"].value.setHex(0xffffff);
+            uniforms["enableSpecular"].value = true;
+            return new THREE.ShaderMaterial(
+                    {
+                        fragmentShader: shader.fragmentShader,
+                        vertexShader: shader.vertexShader,
+                        uniforms: uniforms,
+                        lights: true
+                    });
+        }
+        var invert = 1;
+        var phase = 0;
         function render() {
             stats.update();
+            step += 0.1;
             if (controls.rotate) {
                 sphere1.rotation.y -= 0.01;
                 sphere2.rotation.y += 0.01;
             }
-//            sphere1.rotation.y=step+=0.01;
-//            sphere1.rotation.x=step;
-//            sphere2.rotation.y=step;
-//            sphere2.rotation.x=step;
+            if (phase > 2 * Math.PI) {
+                invert = invert * -1;
+                phase -= 2 * Math.PI;
+            } else {
+                phase += 0.03;
+            }
+            sphereLightMesh.position.z = +(21 * (Math.sin(phase)));
+            sphereLightMesh.position.x = -14 + (14 * (Math.cos(phase)));
+            if (invert < 0) {
+                var pivot = 0;
+                sphereLightMesh.position.x = (invert * (sphereLightMesh.position.x - pivot)) + pivot;
+            }
+            directionalLight.position.copy(sphereLightMesh.position);
             // render using requestAnimationFrame
             requestAnimationFrame(render);
             webGLRenderer.render(scene, camera);
