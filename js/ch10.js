@@ -1,53 +1,63 @@
 var stats = initStats();
         // create a scene, that will hold all our elements such as objects, cameras and lights.
         var scene = new THREE.Scene();
+        var sceneCube = new THREE.Scene();
         // create a camera, which defines where we're looking at.
         var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        var cameraCube = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
         // create a render and set the size
         var webGLRenderer = new THREE.WebGLRenderer();
         webGLRenderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
         webGLRenderer.setSize(window.innerWidth, window.innerHeight);
-        webGLRenderer.shadowMapEnabled = true;
-        var sphere1 = createMesh(new THREE.BoxGeometry(15, 15, 15), "plaster.jpg");
+        webGLRenderer.shadowMapEnabled = false;
+        webGLRenderer.autoClear = false;
+        var textureCube = createCubeMap();
+        var shader = THREE.ShaderLib["cube"];
+        shader.uniforms["tCube"].value = textureCube;
+        var material = new THREE.ShaderMaterial({
+            fragmentShader: shader.fragmentShader,
+            vertexShader: shader.vertexShader,
+            uniforms: shader.uniforms,
+            depthWrite: false,
+            side: THREE.BackSide
+        });
+        cubeMesh = new THREE.Mesh(new THREE.BoxGeometry(100, 100, 100), material);
+        sceneCube.add(cubeMesh);
+        // create the spheres
+        var sphere1 = createMesh(new THREE.SphereGeometry(10, 15, 15), "plaster.jpg");
+        sphere1.material.envMap = textureCube;
         sphere1.rotation.y = -0.5;
         sphere1.position.x = 12;
+        sphere1.position.y = 5;
         scene.add(sphere1);
-        var sphere2 = createMesh(new THREE.BoxGeometry(15, 15, 15), "plaster.jpg", "plaster-normal.jpg");
+        var sphere2 = createMesh(new THREE.BoxGeometry(10, 15, 15), "plaster.jpg", "plaster-normal.jpg");
+        sphere2.material.envMap = textureCube;
         sphere2.rotation.y = 0.5;
         sphere2.position.x = -12;
+        sphere2.position.y = 5;
         scene.add(sphere2);
         console.log(sphere2.geometry.faceVertexUvs);
-        var floorTex = THREE.ImageUtils.loadTexture("assets/textures/general/floor-wood.jpg");
-        var plane = new THREE.Mesh(new THREE.BoxGeometry(200, 100, 0.1, 30), new THREE.MeshPhongMaterial({
-            color: 0x3c3c3c,
-            map: floorTex
-        }));
-        plane.position.y = -7.5;
-        plane.rotation.x = -0.5 * Math.PI;
-        scene.add(plane);
         // position and point the camera to the center of the scene
         camera.position.x = 00;
         camera.position.y = 12;
-        camera.position.z = 38;
+        camera.position.z = 68;
         camera.lookAt(new THREE.Vector3(0, 0, 0));
-        var ambiLight = new THREE.AmbientLight(0x242424);
+        var ambiLight = new THREE.AmbientLight(0xffffff);
         scene.add(ambiLight);
         var light = new THREE.SpotLight();
         light.position.set(0, 30, 30);
         light.intensity = 1.2;
         scene.add(light);
-//        var pointColor = "#ff5808";
         var pointColor = "#ff5808";
         var directionalLight = new THREE.PointLight(pointColor);
-//        directionalLight.distance = 0;
-//        directionalLight.intensity = 0.5;
+        directionalLight.intensity = 4.5;
         scene.add(directionalLight);
         // add a small sphere simulating the pointlight
         var sphereLight = new THREE.SphereGeometry(0.2);
         var sphereLightMaterial = new THREE.MeshBasicMaterial({color: 0xac6c25});
         var sphereLightMesh = new THREE.Mesh(sphereLight, sphereLightMaterial);
         sphereLightMesh.castShadow = true;
-        sphereLightMesh.position = new THREE.Vector3(3, 3, 3);
+        sphereLightMesh.position.copy(new THREE.Vector3(3, 3, 3));
         scene.add(sphereLightMesh);
         // add the output of the renderer to the html element
         document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
@@ -57,6 +67,7 @@ var stats = initStats();
         // setup the control gui
         var controls = new function () {
             this.normalScale = 1;
+            this.reflectivity = 1;
             this.changeTexture = "plaster";
             this.rotate = false;
             this.changeTexture = function (e) {
@@ -67,36 +78,49 @@ var stats = initStats();
                 sphere2.material.normalMap = bump;
             };
             this.updateBump = function (e) {
-                sphere2.material.normalScale.set(e, e);
+                sphere2.material.normalScale.set(controls.normalScale, controls.normalScale);
+                sphere2.material.reflectivity = controls.reflectivity;
+                sphere1.material.reflectivity = controls.reflectivity;
             }
         };
         var gui = new dat.GUI();
         gui.add(controls, "normalScale", -2, 2).onChange(controls.updateBump);
-        gui.add(controls, "changeTexture", ['plaster', 'bathroom', 'metal-floor']).onChange(controls.changeTexture);
+        gui.add(controls, "reflectivity", 0, 2).onChange(controls.updateBump);
+        gui.add(controls, "changeTexture", ['plaster', 'bathroom', 'metal-floor', 'none']).onChange(controls.changeTexture);
         gui.add(controls, "rotate");
         render();
-        function createMesh(geom, imageFile, normal) {
+        function createMesh(geom, texture, normal) {
+            geom.computeVertexNormals();
             if (normal) {
-                var t = THREE.ImageUtils.loadTexture("assets/textures/general/" + imageFile);
+                var t = THREE.ImageUtils.loadTexture("assets/textures/general/" + texture);
                 var m = THREE.ImageUtils.loadTexture("assets/textures/general/" + normal);
-
                 var mat2 = new THREE.MeshPhongMaterial({
                     map: t,
-                    normalMap: m,
+                    normalMap: m
                 });
-
                 var mesh = new THREE.Mesh(geom, mat2);
-
                 return mesh;
             } else {
-                var t = THREE.ImageUtils.loadTexture("assets/textures/general/" + imageFile);
-                var mat1 = new THREE.MeshPhongMaterial({
-                    map: t
-                });
+                var t = THREE.ImageUtils.loadTexture("assets/textures/general/" + texture);
+                var mat1 = new THREE.MeshPhongMaterial({});
                 var mesh = new THREE.Mesh(geom, mat1);
                 return mesh;
             }
+            // create a multimaterial
+//            geom.computeTangents();
             return mesh;
+        }
+        function createCubeMap() {
+            var path = "assets/textures/cubemap/parliament/";
+            var format = '.jpg';
+            var urls = [
+                path + 'posx' + format, path + 'negx' + format,
+                path + 'posy' + format, path + 'negy' + format,
+                path + 'posz' + format, path + 'negz' + format
+            ];
+//        var textureCube = THREE.ImageUtils.loadTextureCube( urls );
+            var textureCube = THREE.ImageUtils.loadTextureCube(urls);
+            return textureCube;
         }
         function createNormalmapShaderMaterial(diffuseMap, normalMap) {
             var shader = THREE.ShaderLib["normalmap"];
@@ -121,6 +145,13 @@ var stats = initStats();
         }
         var invert = 1;
         var phase = 0;
+        var mouseX = 0;
+        var mouseY = 0;
+        document.addEventListener('mousemove', onDocumentMouseMove, false);
+        function onDocumentMouseMove(event) {
+            mouseX = ( event.clientX - window.innerWidth / 2 ) * 10;
+            mouseY = ( event.clientY - window.innerHeight / 2 ) * 10;
+        }
         function render() {
             stats.update();
             step += 0.1;
@@ -141,9 +172,22 @@ var stats = initStats();
                 sphereLightMesh.position.x = (invert * (sphereLightMesh.position.x - pivot)) + pivot;
             }
             directionalLight.position.copy(sphereLightMesh.position);
+            camera.position.x = (mouseX * .018);
+            camera.position.y = 6 + (mouseY * .018);
+//        camera.position.y += ( - mouseY - camera.position.y ) * .005;
+//        console.log(mouseX + "," + mouseY);
+            camera.lookAt(scene.position);
+            cameraCube.rotation = camera.rotation;
+//            sphere1.rotation.y=step+=0.01;
+//            sphere1.rotation.x=step;
+//            sphere2.rotation.y=step;
+//            sphere2.rotation.x=step;
             // render using requestAnimationFrame
             requestAnimationFrame(render);
+            webGLRenderer.render(sceneCube, cameraCube);
             webGLRenderer.render(scene, camera);
+//
+            <!---->
         }
         function initStats() {
             var stats = new Stats();
