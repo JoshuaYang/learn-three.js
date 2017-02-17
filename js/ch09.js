@@ -5,66 +5,70 @@ var stats = initStats();
         var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         // create a render and set the size
         var webGLRenderer = new THREE.WebGLRenderer();
-        webGLRenderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
+        webGLRenderer.setClearColor(new THREE.Color(0xdddddd, 1.0));
         webGLRenderer.setSize(window.innerWidth, window.innerHeight);
         webGLRenderer.shadowMapEnabled = true;
         // position and point the camera to the center of the scene
-        camera.position.x = 0;
-        camera.position.y = 0;
-        camera.position.z = 4;
+        camera.position.x = -50;
+        camera.position.y = 40;
+        camera.position.z = 60;
         camera.lookAt(new THREE.Vector3(0, 0, 0));
         // add spotlight for the shadows
         var spotLight = new THREE.SpotLight(0xffffff);
-        spotLight.position.set(0, 50, 30);
-        spotLight.intensity = 2;
+        spotLight.position.set(-50, 70, 60);
+        spotLight.intensity = 1;
         scene.add(spotLight);
         // add the output of the renderer to the html element
         document.getElementById("WebGL-output").appendChild(webGLRenderer.domElement);
         // call the render function
         var step = 0;
+        // setup the control gui
+        var controls = new function () {
+            // we need the first child, since it's a multimaterial
+            this.animations = 'crattack';
+            this.fps = 10;
+        };
+        var gui = new dat.GUI();
         var mesh;
         var clock = new THREE.Clock();
         var loader = new THREE.JSONLoader();
-        loader.load('assets/models/hand-1.js', function (geometry, mat) {
-            var mat = new THREE.MeshLambertMaterial({color: 0xF0C8C9, skinning: true});
-            mesh = new THREE.SkinnedMesh(geometry, mat);
-            // rotate the complete hand
-            mesh.rotation.x = 0.5 * Math.PI;
-            mesh.rotation.z = 0.7 * Math.PI;
-            // add the mesh
+        loader.load('assets/models/ogre/ogro.js', function (geometry, mat) {
+            geometry.computeMorphNormals();
+            var mat = new THREE.MeshLambertMaterial(
+                    {
+                        map: THREE.ImageUtils.loadTexture("assets/models/ogre/skins/skin.jpg"),
+                        morphTargets: true, morphNormals: true
+                    });
+            mesh = new THREE.MorphBlendMesh(geometry, mat);
+            mesh.rotation.y = 0.7;
+            mesh.parseAnimations();
+            // parse the animations and add them to the control
+            var animLabels = [];
+            for (var key in mesh.geometry.animations) {
+                if (key === 'length' || !mesh.geometry.animations.hasOwnProperty(key)) continue;
+                animLabels.push(key);
+            }
+            gui.add(controls, 'animations', animLabels).onChange(function (e) {
+                mesh.playAnimation(controls.animations, controls.fps);
+            });
+            gui.add(controls, 'fps', 1, 20).step(1).onChange(function (e) {
+                mesh.playAnimation(controls.animations, controls.fps);
+            });
+            mesh.playAnimation('crattack', 10);
             scene.add(mesh);
-
-            helper = new THREE.SkeletonHelper( mesh );               helper.material.linewidth = 2;               helper.visible = true;               scene.add( helper );
-
-            // and start the animation
-            tween.start();
-        }, '../assets/models');
-        var onUpdate = function () {
-            var pos = this.pos;
-            console.log(mesh.skeleton);
-            // rotate the fingers
-            mesh.skeleton.bones[5].rotation.set(0, 0, pos);
-            mesh.skeleton.bones[6].rotation.set(0, 0, pos);
-            mesh.skeleton.bones[10].rotation.set(0, 0, pos);
-            mesh.skeleton.bones[11].rotation.set(0, 0, pos);
-            mesh.skeleton.bones[15].rotation.set(0, 0, pos);
-            mesh.skeleton.bones[16].rotation.set(0, 0, pos);
-            mesh.skeleton.bones[20].rotation.set(0, 0, pos);
-            mesh.skeleton.bones[21].rotation.set(0, 0, pos);
-            // rotate the wrist
-            mesh.skeleton.bones[1].rotation.set(pos, 0, 0);
-        };
-        var tween = new TWEEN.Tween({pos: -1})
-                .to({pos: 0}, 3000)
-                .easing(TWEEN.Easing.Cubic.InOut)
-                .yoyo(true)
-                .repeat(Infinity)
-                .onUpdate(onUpdate);
+        });
         render();
         function render() {
             stats.update();
-            TWEEN.update();
             var delta = clock.getDelta();
+            if (mesh) {
+                //            mesh.rotation.x+=0.006;
+//                mesh.rotation.y+=0.006;
+                if (mesh) {
+                    mesh.updateAnimation(delta * 1000);
+                    //    mesh.rotation.y+=0.01;
+                }
+            }
             // render using requestAnimationFrame
             requestAnimationFrame(render);
             webGLRenderer.render(scene, camera);
