@@ -68,6 +68,7 @@ var stats = initStats();
             geom.computeVertexNormals();
             var mat = new THREE.MeshPhongMaterial();
             mat.map = texture;
+
             if (bump) {
                 var bump = THREE.ImageUtils.loadTexture("assets/textures/general/" + bump);
                 mat.bumpMap = bump;
