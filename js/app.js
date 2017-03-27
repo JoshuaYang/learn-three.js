@@ -6,7 +6,7 @@ var container = document.getElementById('container');
 var scene = new THREE.Scene();
 
 var camera = new THREE.PerspectiveCamera(75, ww / wh, 1, 1000);
-camera.position.x = 0.1;
+camera.position.z = 500;
 
 var renderer = new THREE.WebGLRenderer();
 renderer.setSize(ww, wh);
